@@ -48,18 +48,18 @@ jobs:
         run: |
           ssh ${SSH_USER}@${EC2_IP} '
             echo "server {
-              listen 80;
-              server_name ${EC2_IP};
-              location / {
-                proxy_pass http://localhost:5000;
-                proxy_set_header Host \$host;
-                proxy_set_header X-Real-IP \$remote_addr;
-              }
-            }" | sudo tee /etc/nginx/sites-available/flaskapp
-            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
-            sudo rm -f /etc/nginx/sites-enabled/default
-            sudo nginx -t && sudo systemctl restart nginx
-          '
+            listen 80;
+            server_name ${EC2_IP};  # ← Fix: Add EC2_IP or domain
+            location / {
+            proxy_pass http://localhost:5000;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+         }
+      }" | sudo tee /etc/nginx/sites-available/flaskapp
+      sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+      sudo rm -f /etc/nginx/sites-enabled/default
+      sudo nginx -t && sudo systemctl restart nginx
+    '
 
       - name: Start Gunicorn Service
         run: |
