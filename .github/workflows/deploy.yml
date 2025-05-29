@@ -50,7 +50,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
             echo "server {
               listen 80;
-              server_name ${EC2_IP};
+              server_name _;
 
               location / {
                 proxy_pass http://localhost:5000;
