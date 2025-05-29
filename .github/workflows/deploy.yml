@@ -1,0 +1,89 @@
+name: Deploy Flask App to EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  EC2_IP: '3.89.21.8'  # Replace with your EC2 IP
+  SSH_USER: 'ubuntu'
+  APP_DIR: '/var/www/flaskapp'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.KNOWN_HOSTS }}
+
+      - name: Install Dependencies on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
+            sudo apt update -y
+            sudo apt install -y python3 python3-pip python3-venv nginx python3-dev build-essential libssl-dev libffi-dev
+            sudo apt install -y python3-gunicorn
+          '
+
+      - name: Deploy Flask App
+        run: |
+          ssh ${SSH_USER}@${EC2_IP} "
+            sudo mkdir -p ${APP_DIR}
+            sudo chown -R ${SSH_USER}:${SSH_USER} ${APP_DIR}
+            cd ${APP_DIR}
+            git clone https://github.com/your-username/your-repo.git . || git pull
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            pip install gunicorn
+          "
+
+      - name: Configure Nginx
+        run: |
+          ssh ${SSH_USER}@${EC2_IP} '
+            echo "server {
+              listen 80;
+              server_name ${EC2_IP};
+              location / {
+                proxy_pass http://localhost:5000;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+              }
+            }" | sudo tee /etc/nginx/sites-available/flaskapp
+            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t && sudo systemctl restart nginx
+          '
+
+      - name: Start Gunicorn Service
+        run: |
+          ssh ${SSH_USER}@${EC2_IP} '
+            echo "[Unit]
+            Description=Gunicorn Flask App
+            After=network.target
+
+            [Service]
+            User=${SSH_USER}
+            Group=www-data
+            WorkingDirectory=${APP_DIR}
+            Environment=\"PATH=${APP_DIR}/venv/bin\"
+            ExecStart=${APP_DIR}/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 3 app:app
+
+            [Install]
+            WantedBy=multi-user.target" | sudo tee /etc/systemd/system/flaskapp.service
+            sudo systemctl daemon-reload
+            sudo systemctl enable flaskapp
+            sudo systemctl restart flaskapp
+          '
+
+      - name: Verify Deployment
+        run: |
+          ssh ${SSH_USER}@${EC2_IP} '
+            curl -I http://localhost:5000
+          '
