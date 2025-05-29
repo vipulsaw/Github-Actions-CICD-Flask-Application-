@@ -65,25 +65,23 @@ jobs:
           '
 
       - name: Start Gunicorn Service
-  run: |
-    ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
-      echo "[Unit]
-      Description=Gunicorn Flask App
-      After=network.target
+        run: |
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
+            echo "[Unit]
+            Description=Gunicorn Flask App
+            After=network.target
 
-      [Service]
-      User=${SSH_USER}
-      Group=www-data
-      WorkingDirectory=${APP_DIR}
-      Environment=\"PATH=${APP_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"
-      ExecStart=${APP_DIR}/venv/bin/gunicorn --bind unix:${APP_DIR}/flaskapp.sock --workers 3 app:app
+            [Service]
+            User=${SSH_USER}
+            Group=www-data
+            WorkingDirectory=${APP_DIR}
+            Environment=\"PATH=${APP_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"
+            ExecStart=${APP_DIR}/venv/bin/gunicorn --bind unix:${APP_DIR}/flaskapp.sock --workers 3 app:app
 
-      [Install]
-      WantedBy=multi-user.target" | sudo tee /etc/systemd/system/flaskapp.service
-      
-      sudo systemctl daemon-reload
-      sudo systemctl enable flaskapp
-      sudo systemctl restart flaskapp
-    '
-
-    
+            [Install]
+            WantedBy=multi-user.target" | sudo tee /etc/systemd/system/flaskapp.service
+            
+            sudo systemctl daemon-reload
+            sudo systemctl enable flaskapp
+            sudo systemctl restart flaskapp
+          '
