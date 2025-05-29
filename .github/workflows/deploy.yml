@@ -33,37 +33,40 @@ jobs:
 
       - name: Deploy Flask App
         run: |
-          ssh ${SSH_USER}@${EC2_IP} "
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} "
             sudo mkdir -p ${APP_DIR}
             sudo chown -R ${SSH_USER}:${SSH_USER} ${APP_DIR}
             cd ${APP_DIR}
-            git clone https://github.com/your-username/your-repo.git . || git pull
+            git clone https://github.com/${{ github.repository }}.git . || (git pull && echo 'Repository updated')
             python3 -m venv venv
             source venv/bin/activate
+            pip install --upgrade pip
             pip install -r requirements.txt
             pip install gunicorn
           "
 
       - name: Configure Nginx
         run: |
-          ssh ${SSH_USER}@${EC2_IP} '
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
             echo "server {
               listen 80;
-              server_name ${EC2_IP};  # ← Fix: Add EC2_IP or domain
+              server_name ${EC2_IP};
+
               location / {
                 proxy_pass http://localhost:5000;
                 proxy_set_header Host \$host;
                 proxy_set_header X-Real-IP \$remote_addr;
-             }
-           }" | sudo tee /etc/nginx/sites-available/flaskapp
-           sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
-           sudo rm -f /etc/nginx/sites-enabled/default
-           sudo nginx -t && sudo systemctl restart nginx
-         '
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+              }
+            }" | sudo tee /etc/nginx/sites-available/flaskapp
+            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t && sudo systemctl restart nginx
+          '
 
       - name: Start Gunicorn Service
         run: |
-          ssh ${SSH_USER}@${EC2_IP} '
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
             echo "[Unit]
             Description=Gunicorn Flask App
             After=network.target
@@ -84,6 +87,8 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          ssh ${SSH_USER}@${EC2_IP} '
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_IP} '
+            sleep 5
             curl -I http://localhost:5000
+            curl -I http://${EC2_IP}
           '
